@@ -24,7 +24,7 @@ desc = describe(hist_stocks)
 function markowitz_frontier(μ, Σ)
     min_mu = minimum(μ)
     max_mu = maximum(μ)
-    R_vec = [ i for i in min_mu:5*max_mu]
+    R_vec = collect(min_mu:5:40)
     sigma_vec = []
     for R in R_vec
         sigma, status = markowitz_variance(μ, Σ, R)
