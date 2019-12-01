@@ -39,19 +39,20 @@ value.(x)
 function questao2(μ, Σ, α, r, R)
     nvar = size(μ,1)
     ncen = size(r,2)
-    p = ones(ncen).*(1/ncen)
+    p = ones(ncen) .* (1/ncen)
     m = JuMP.Model(with_optimizer(Ipopt.Optimizer))
+    @variable(m, z)
+    @variable(m, y[1:ncen] >=0)
     @variable(m, x[1:nvar] >=0)
-    @variable(m, λ[1:ncen] >=0)
-    @constraint(m, sum(λ) == 1)
-    @constraint(m,[i=1:ncen], λ[i] <= p[i]/(1-α))
-    @constraint(m, sum(x) == 1)
-    @constraint(m, μ'x == R)
-    @objective(m, Min, -sum( (λ[i] .* r[:,i])' * x for i in 1:ncen) )
+    @constraints(m, begin
+        CVAR1[s in 1:ncen], y[s] >= z - x' * r[:,s]
+        sum(x) == 1
+        returns, sum(μ .* x) == R
+    end)
+    @objective(m, Min, -(z - sum(p .* y)/(1-α)) )
     optimize!(m)
-
-    # # portfolio variance
-    σ = sqrt(sum(value(x[i])*value(x[j])*Σ[i,j] for i in 1:nvar, j in 1:nvar))
+    JuMP.value.(x)
+    σ = sqrt(sum(value(x[i]) * value(x[j]) * Σ[i,j] for i in 1:nvar, j in 1:nvar))
     return x, σ, termination_status(m)
 end
 
@@ -67,20 +68,30 @@ value.(x3) - value.(x2)
 value.(x3) - value.(x1)
 value.(x2) - value.(x1)
 
-
-function markowitz_frontier2(μ, Σ, r, α)
-    min_mu = minimum(μ)
-    max_mu = maximum(μ)
+function markowitz_variance_modified2(μ, Σ, R)
+    nvar = size(μ,1)
+    m = JuMP.Model(with_optimizer(Ipopt.Optimizer))
+    @variable(m, x[1:nvar] >= 0)
+    @constraint(m, sum(x) == 1)
+    @constraint(m, sum(μ .* x) == R)
+    @objective(m, Min, x' * Σ * x / 2)
+    optimize!(m)
+    JuMP.value.(x)
+    # portfolio variance
+    σ = sqrt(sum(value(x[i])*value(x[j]) * Σ[i,j] for i in 1:nvar, j in 1:nvar))
+    return σ, termination_status(m)
+end
+function markowitz_frontier2(average, aux_covar, r, α)
+    min_mu = minimum(average)
+    max_mu = maximum(average)
     R_vec = collect(min_mu:0.1:max_mu)
     sigma_vec = []
     sigma_vec2 = []
     for R in R_vec
-        sigma, status = markowitz_variance_modified(μ, Σ, R)
-        x, sigma2, status = questao2(μ, Σ, α, r, R)
-        #if status == OPTIMAL::TerminationStatusCode
-            push!(sigma_vec, sigma)
-            push!(sigma_vec2, sigma2)
-        #end
+        sigma, status = markowitz_variance_modified2(average, aux_covar, R)
+        x, sigma2, status = questao2(average, aux_covar, α, r, R)
+        push!(sigma_vec, sigma)
+        push!(sigma_vec2, sigma2)
     end
     #@show sigma_vec - sigma_vec2
     plot(sigma_vec, R_vec.-1)
@@ -89,7 +100,7 @@ function markowitz_frontier2(μ, Σ, r, α)
     ylabel!("r")
     title!("Comparação")
 end
-markowitz_frontier2(μ, Σ, r, 1)
+markowitz_frontier2(μ, Σ, r, 0.5)
 
 function questao3(μ, Σ, α, r, γ)
     nvar = size(μ,1)
