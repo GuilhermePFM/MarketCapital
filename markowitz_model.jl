@@ -4,13 +4,14 @@ using Statistics
 using JuMP
 using Ipopt
 using Plots
+using HypothesisTests
 
 cd("D:\\Repositories\\PUC\\Mercado de Capitais\\Code")
 
 # Reading Data
 fname = "stocks.csv"
 fmarkt= "market_index.csv"
-hist_stocks = CSV.read(fname; types = [String, Float64, Float64, Float64, Float64, Float64])
+hist_stocks = CSV.read(fname; types = [String, Float64, Float64, Float64, Float64, Float64, Float64])
 hist_stocks = dropmissing(hist_stocks)
 
 hist_market = CSV.read(fmarkt; types = [String, Float64])
@@ -25,7 +26,9 @@ desc = describe(hist_stocks)
 # 2) Estimating covariance matrix
 Σ = cov(Matrix(hist_stocks[2:end]); dims=1, corrected=true)
 
-joint_df = hcat(hist_stocks[2:end], hist_market[:,2])
+hist_stocks = CSV.read(fname; types = [String, Float64, Float64, Float64, Float64, Float64, Float64])
+hist_market = CSV.read(fmarkt; types = [String, Float64])
+joint_df = hcat(hist_stocks[:,2:end-1], hist_market[:,2])
 joint_df = dropmissing(joint_df)
 rm = describe(joint_df)[:mean][end]
 
@@ -102,7 +105,7 @@ function return_excess_maximization(μ, Σ, R, rf)
 end
 
 # 4) Calculate the analytical maximum expected return under variance portfolio
-function max_exp_ret(μ, Σ, rf)
+function max_exp_ret(r, Σ, rf)
     #μk = rf + Σk'v
     v = (μ .-rf) \ Σ
     x = v / sum(v)
@@ -110,10 +113,16 @@ function max_exp_ret(μ, Σ, rf)
 end
 
 # 5) Calculate the CAPM of the assets
-function CAPM(μ, Σm, rm, rf)
+function CAPM(r, Σm, rm, rf,i)
     beta = Σm[1:end-1,end] / Σm[end,1]
 
     # estimates the return of each asset
-    r = rf .+ beta * (rm - rf)
-
+    # r = rf .+ beta * (rm - rf)
+    alpha = r .- rf .- beta[i] * (rm - rf)
+    a =OneSampleTTest(alpha)
+    println(a)
+end
+for i in 1:5
+    r = dropmissing(hist_stocks)[:,i+1]
+    CAPM(r, Σm, rm, 0,i)
 end
