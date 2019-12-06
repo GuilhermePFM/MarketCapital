@@ -81,7 +81,7 @@ function markowitz_variance(μ, Σ, R)
     optimize!(m)
 
     # portfolio variance
-    σ = sum(value(x[i])*value(x[j])*Σ[i,j] for i in 1:nvar, j in 1:nvar)
+    σ = sqrt(sum(value(x[i])*value(x[j])*Σ[i,j] for i in 1:nvar, j in 1:nvar))
     return σ, termination_status(m)
 end
 function markowitz_variance_modified(μ, Σ, R)
@@ -125,4 +125,16 @@ end
 for i in 1:5
     r = dropmissing(hist_stocks)[:,i+1]
     CAPM(r, Σm, rm, 0,i)
+end
+
+
+function CVAR()
+
+end
+
+function Var(l, alpha)
+    ls = sort(l)
+    n = length(l)
+    maior_que = alpha * n
+    
 end

@@ -100,27 +100,29 @@ function markowitz_frontier2(average, aux_covar, r, α)
     ylabel!("r")
     title!("Comparação")
 end
-markowitz_frontier2(μ, Σ, r, 0.5)
+markowitz_frontier2(μ, Σ, r, 0.1)
 
+using Xpress
 function questao3(μ, Σ, α, r, γ)
     nvar = size(μ,1)
     ncen = size(r,2)
     p = ones(ncen).*(1/ncen)
-    m = JuMP.Model(with_optimizer(Ipopt.Optimizer))
+    m = JuMP.Model(with_optimizer(Xpress.Optimizer))
     @variable(m, x[1:nvar] >=0)
     @variable(m, θ)
     @variable(m, z)
     @variable(m, δ[1:ncen] >= 0)
     @constraint(m, sum(x) == 1)
     @constraint(m, θ <= γ)
-    @constraint(m, θ >= - (z - sum(p[i]*δ[i]/(1-α) for i in 1:ncen)) )
+    @constraint(m, θ == - z + sum(p[i]*δ[i]/(1-α) for i in 1:ncen)) 
     @constraint(m,[i=1:ncen], δ[i] >= z - r[:,i]'x )
-    @objective(m, Max, μ'x)
+    @objective(m, Max, μ'x + z - sum(p[i]*δ[i]/(1-α) for i in 1:ncen)) #+ z - sum(p[i]*δ[i]/(1-α) for i in 1:ncen)
     optimize!(m)
-
+    termination_status(m)
+    value.(x)
     # # portfolio variance
     σ = sqrt(sum(value(x[i])*value(x[j])*Σ[i,j] for i in 1:nvar, j in 1:nvar))
-    return x, σ, termination_status(m)
+    return x, σ, termination_status(m), value(θ)
 end
 
 γ = -0.5 * maximum(μ)
@@ -129,6 +131,7 @@ x1, σ1, stat = questao1(μ, Σ, α, γ)
 value.(x1)
 x2, σ2, stat = questao2(μ, Σ, α, r, value.(x1)'μ)
 value.(x2)
-x3, σ3, stat = questao3(μ, Σ, α, r, γ)
-value.(x3)
+γ = -0.8841
+x3, σ3, stat, θ = questao3(μ, Σ, α, r, -0.8841) #-0.8841
+value.(x3)  
 

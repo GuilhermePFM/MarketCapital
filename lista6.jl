@@ -12,7 +12,7 @@ function calc_lucro(P, ry)
 end
 
 y=0.15
-ry = 1+y
+ry = y
 Pa = [100, 100, 1100]
 Pb = [50, 50, 1050]
 Pc = [0, 0, 1000]
@@ -39,7 +39,7 @@ Dl = duration([0,2000,0], ry)
 #
 function convexity(P, ry, m=1)
     L = calc_lucro(P, ry)
-    C = 1/L * 1/(1 + ry/m)^2 * sum( (k*(k+1) / m^2) *(P[k] / (1+ry/m)^k)  for k in 1:length(P))
+    C = (1/L) * (1/(1 + ry/m)^2) * sum( (k*(k+1) / m^2) * (P[k] / (1+ry/m)^k)  for k in 1:length(P))
     return C
 end
 

@@ -1,78 +1,135 @@
-function Util(x, wealth)
-    e = MathConstants.e
-    return -e^(-0.01 * (x + wealth))
+using Distributions, Plots
+#
+# Questao 1)
+#
+function simulate(w, nsim)
+    d = Normal(w)
+    returns = rand( nsim)
+    return returns
 end
-function Inv_Util(u, wealth)
-    return log(-u) * (-100) - wealth
-end
-returns = rand(num_samples) * 25 .+ 90;
-# defining variables
-num_samples = 1000;
-wealth = 11
-# utility function results 
-result = Util.(sort(returns));
-# right equivalent
-aver_results = sum(result) / num_samples;
-right_eq = Inv_Util(aver_results, wealth);
-# risk premium
-premium = aver_results - right_eq
 
-#
-# 2
-#
-function Util(x, wealth)
-    return 2 * (x + wealth)^(1/2)
-end
-function Inv_Util(u, wealth)
-    return 4 / (u + wealth)^2
-end
-returns = rand(num_samples) * 25 .+ 90;
-# defining variables
-num_samples = 1000;
-wealth = 12
-# utility function results 
-result = Util.(sort(returns));
-# right equivalent
-aver_results = sum(result) / num_samples;
-right_eq = Inv_Util(aver_results, wealth);
-# risk premium
-premium = aver_results - right_eq
-
-#
-# 3
-#
-using Distributions
-function Util1(x)
-    e = MathConstants.e
-    return -e^(-0.01 * (x))
-end
-function Util2(x)
-    return 2 * (x)^(1/2)
-end
-Aver_R = collect(-1:0.001:1)
-final_results1 = zeros(size(Aver_R)[1],2)
-final_results2 = zeros(size(Aver_R)[1],2)
-for j in 1:size(Aver_R)[1]
-    # risky asset
-    y = Normal(Aver_R[j],1)
-    num_samples = 10000
-    y_sample = rand(y,num_samples)
-    r = MathConstants.e.^(y_sample)
-    sum(r)/num_samples
-    # risk free asset
-    Aver_Rfree = 1.01
-    # other assumptions
-    wealth = 100
-    num_disc = 1000
-    x = collect(0:(wealth/num_disc):wealth)
-    result1 = zeros(num_disc+1)
-    result2 = zeros(num_disc+1)
-    for i in 1:(num_disc+1)
-        result1[i] = sum( Util1.( x[i] .* r[:] .+ (wealth - x[i]) * Aver_Rfree ) ) / num_samples
-        result2[i] = sum( Util2.( x[i] .* r[:] .+ (wealth - x[i]) * Aver_Rfree ) ) / num_samples
+function plota_wealth(func, inv_func, name)
+    nsim = 1000
+    premios = []
+    wealths = []
+    certainty_eqv = []
+    expect_retv = []
+    ret = simulate(1, nsim) *25
+    sort!(ret)
+    for w in 1:100
+        uti = [func(w, ret[i]) for i in 1:length(ret)]
+        expect_ret = sum(ret)/nsim
+        expect_uti = sum(uti)/nsim
+        certainty_eq = inv_func(expect_uti, w)
+        premio = expect_ret - certainty_eq
+        push!(premios, premio)
+        push!(wealths, w)
+        push!(certainty_eqv, certainty_eq)
+        push!(expect_retv, expect_ret)
     end
-    final_results1[j,1] = findmax(result1)[1]
-    final_results1[j,2] = findmax(result1)[2]
-    final_results2[j,1] = findmax(result2)[1]
-    final_results2[j,2] = findmax(result2)[2]
+    plot(wealths, premios, label=[name])
+    xlabel!("Riqueza inicial")
+    ylabel!("Premio")
+    title!("Comparação")
 end
+
+function util_cara(w, r)
+    e = MathConstants.e
+    return -e^(-0.01 * (w+r))
+end
+function inv_cara(u, w)
+    return log(-u) / (-0.01) - w
+end
+
+plota_wealth(util_cara, inv_cara, "CARA")
+
+
+#
+# Questao 2)
+#
+function util_crra(w, r)
+    return 2 * (w+r)^(1/2)
+end
+function inv_crra(u, w)
+    return (u)^2 / 4 - w
+end
+
+plota_wealth(util_crra, inv_crra, "CRRA")
+
+
+
+
+#
+# Questao 3)
+#
+npoints = 10
+w = 100
+ln = log(w)
+gamma = [10^(-Float64(i)) for i in collect(1:npoints)]
+val = []
+for i in 1:npoints
+    v =  ( w ^ gamma[i] - 1 ) / gamma[i]
+    push!(val, v)
+end
+# val = sort(val)
+# gamma = sort(gamma)
+plot(val, label = "lim ln()")
+plot!([ln for i in 1:npoints], label = "Ln(w)")
+xlabel!("Iterações")
+title!("Comparação")
+
+# Questao 4)
+using JuMP, Ipopt, Distributions
+function max_utility(func, Rf, R, w)
+    ncen = length(R)
+    m =JuMP.model(with_optimizer(Ipopt.Optimizer))
+    @variable(m, 0 <= x <= w) 
+    @objective(m, sum(func(r*x+(w-x)*Rf,0) for r in R)/ncen)
+    optimize!(m)
+    return value.(x), termination_status(m)
+end
+function utility(func, Rf, R, w, x)
+    ncen = length(R)
+    u= 0
+    for r in R
+        if r*x+(w-x)*Rf > 0
+        u += func(r*x+(w-x)*Rf,0)
+        end
+    end
+    u = u /ncen
+    return u
+end
+W = 100
+Rf = 1.01
+nsim = 100
+opt_cara = []
+opt_cara_x = []
+opt_crra = []
+opt_crra_x = []
+for Rm in collect(1:0.001:10)
+    # simulating
+    d = Normal(Rm, 1)
+    R = rand(d, nsim)
+    cara_lst = [] #util_crra
+    crra_lst = [] # util_crra
+    for x in 0:1:w
+        cara = utility(util_cara, Rf, R, w, x)
+        push!(cara_lst, cara)
+        crra = utility(util_crra, Rf, R, w, x)
+        push!(crra_lst, crra)
+    end
+
+    val1, i = findmax(cara_lst)
+    push!(opt_cara, val1)
+    push!(opt_cara_x, i)
+    val2, i = findmax(crra_lst)
+    push!(opt_crra, val2)
+    push!(opt_crra_x, i)
+end
+Rm = collect(1:0.001:10)
+plot(Rm, opt_cara, label = "CARA")
+xlabel!("R")
+ylabel!("Valor ótimo")
+plot(Rm, opt_crra, label = "CRRA")
+xlabel!("R")
+ylabel!("Valor ótimo")
